@@ -25,7 +25,9 @@ chown -R ec2-user:ec2-user flask-express-app-withlocalk8s-minikube
 # FLASK APP
 ####################
 cd flask-express-app-withlocalk8s-minikube/flask-frontend
-pip3 install -r requirements.txt
+python3 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
 nohup python3 app.py > flask.log 2>&1 &
 
 ####################
