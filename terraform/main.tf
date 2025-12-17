@@ -4,33 +4,36 @@ resource "aws_instance" "app" {
   key_name               = var.key_name
   vpc_security_group_ids = [aws_security_group.app_sg.id]
 
-  user_data = <<-EOF
+user_data = <<-EOF
 #!/bin/bash
 set -e
 
-# Update system and install dependencies
 yum update -y
 yum install -y git python3 python3-pip
 
-# Install Node.js 18
+# Install Node.js
 curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
 yum install -y nodejs
 
-# Go to ec2-user home
 cd /home/ec2-user
-# Remove folder if it exists, then clone
-rm -rf flask-express-app-withlocalk8s-minik8s
+
+# Clone repo
 git clone https://github.com/Mateen-Aws2025/flask-express-app-withlocalk8s-minikube.git
 chown -R ec2-user:ec2-user flask-express-app-withlocalk8s-minikube
 
-# Backend
-cd flask-express-app-withlocalk8s-minikube/express-backend
+####################
+# FLASK APP
+####################
+cd flask-express-app-withlocalk8s-minikube/flask-frontend
 pip3 install -r requirements.txt
 nohup python3 app.py > flask.log 2>&1 &
-# Start Express frontend on port 3000
-cd ../flask-frontend
-npm install -y
-nohup npm start > /home/ec2-user/express.log 2>&1 &
+
+####################
+# EXPRESS APP
+####################
+cd ../express-backend
+npm install
+nohup npm start > express.log 2>&1 &
 EOF
 
   tags = {
