@@ -9,7 +9,9 @@ terraform/terraform.tfstate.backup
 # Node
 node_modules/
 
-# Python
+# Python virtual environment
+venv/
+.env
 __pycache__/
 *.pyc
 
