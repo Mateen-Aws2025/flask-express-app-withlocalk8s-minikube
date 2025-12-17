@@ -18,22 +18,17 @@ yum install -y nodejs
 
 # Go to ec2-user home
 cd /home/ec2-user
-
-# Clone repo if it does not exist
-if [ ! -d "flask-express-app-withlocalk8s-minikube" ]; then
-    git clone https://github.com/Mateen-Aws2025/flask-express-app-withlocalk8s-minikube.git
-fi
-
-# Ensure ec2-user owns the repo
+# Remove folder if it exists, then clone
+rm -rf flask-express-app-withlocalk8s-minik8s
+git clone https://github.com/Mateen-Aws2025/flask-express-app-withlocalk8s-minikube.git
 chown -R ec2-user:ec2-user flask-express-app-withlocalk8s-minikube
 
-# Start Flask backend on port 5000
-cd flask-express-app-withlocalk8s-minikube/backend
+# Backend
+cd flask-express-app-withlocalk8s-minikube/express-backend
 pip3 install -r requirements.txt
-nohup python3 app.py > /home/ec2-user/flask.log 2>&1 &
-
+nohup python3 app.py > flask.log 2>&1 &
 # Start Express frontend on port 3000
-cd ../frontend
+cd ../flask-frontend
 npm install -y
 nohup npm start > /home/ec2-user/express.log 2>&1 &
 EOF
