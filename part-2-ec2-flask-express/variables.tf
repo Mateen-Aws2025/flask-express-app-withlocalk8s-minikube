@@ -5,3 +5,4 @@ variable "instance_type" {
 variable "key_name" {
   description = "terraform-runner-ec2"
 }
+
