@@ -1,99 +1,88 @@
-################################
-# VPC & Networking
-################################
-
-resource "aws_vpc" "app_vpc" {
-  cidr_block = "10.0.0.0/16"
-
-  tags = {
-    Name = "part2-vpc"
-  }
+##############################
+# PROVIDER
+##############################
+provider "aws" {
+  region = var.aws_region
 }
 
+##############################
+# VPC
+##############################
+resource "aws_vpc" "main_vpc" {
+  cidr_block = "10.0.0.0/16"
+  tags = { Name = "Part2-VPC" }
+}
+
+##############################
+# Public Subnet
+##############################
 resource "aws_subnet" "public_subnet" {
-  vpc_id                  = aws_vpc.app_vpc.id
+  vpc_id                  = aws_vpc.main_vpc.id
   cidr_block              = "10.0.1.0/24"
   map_public_ip_on_launch = true
-
-  tags = {
-    Name = "part2-public-subnet"
-  }
+  availability_zone       = "us-east-1a" # adjust for your region
+  tags = { Name = "Part2-Public-Subnet" }
 }
 
+##############################
+# Internet Gateway
+##############################
 resource "aws_internet_gateway" "igw" {
-  vpc_id = aws_vpc.app_vpc.id
-
-  tags = {
-    Name = "part2-igw"
-  }
+  vpc_id = aws_vpc.main_vpc.id
+  tags   = { Name = "Part2-IGW" }
 }
 
+##############################
+# Route Table
+##############################
 resource "aws_route_table" "public_rt" {
-  vpc_id = aws_vpc.app_vpc.id
+  vpc_id = aws_vpc.main_vpc.id
 
   route {
     cidr_block = "0.0.0.0/0"
     gateway_id = aws_internet_gateway.igw.id
   }
 
-  tags = {
-    Name = "part2-public-rt"
-  }
+  tags = { Name = "Part2-Public-RT" }
 }
 
-resource "aws_route_table_association" "public_rta" {
+resource "aws_route_table_association" "public_rt_assoc" {
   subnet_id      = aws_subnet.public_subnet.id
   route_table_id = aws_route_table.public_rt.id
 }
 
-################################
-# Security Groups
-################################
+##############################
+# SECURITY GROUPS (No cycles)
+##############################
 
-# Flask Backend Security Group
-resource "aws_security_group" "flask_sg" {
-  name   = "flask-sg-part2"
-  vpc_id = aws_vpc.app_vpc.id
-
-  # Public access to Flask
-  ingress {
-    from_port   = 5000
-    to_port     = 5000
-    protocol    = "tcp"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  # Allow traffic from Express EC2
-  ingress {
-    from_port       = 5000
-    to_port         = 5000
-    protocol        = "tcp"
-    security_groups = [aws_security_group.express_sg.id]
-  }
-
-  egress {
-    from_port   = 0
-    to_port     = 0
-    protocol    = "-1"
-    cidr_blocks = ["0.0.0.0/0"]
-  }
-
-  tags = {
-    Name = "flask-sg-part2"
-  }
-}
-
-# Express Frontend Security Group
+# Express SG
 resource "aws_security_group" "express_sg" {
-  name   = "express-sg-part2"
-  vpc_id = aws_vpc.app_vpc.id
+  name        = "express-sg"
+  description = "Express frontend SG"
+  vpc_id      = aws_vpc.main_vpc.id
 
+  # Public access
   ingress {
     from_port   = 3000
     to_port     = 3000
     protocol    = "tcp"
     cidr_blocks = ["0.0.0.0/0"]
   }
+    ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
+  # Inter-EC2 communication (Flask can reach Express)
+  ingress {
+    from_port   = 3000
+    to_port     = 3000
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main_vpc.cidr_block]
+  }
 
   egress {
     from_port   = 0
@@ -101,47 +90,107 @@ resource "aws_security_group" "express_sg" {
     protocol    = "-1"
     cidr_blocks = ["0.0.0.0/0"]
   }
+}
 
-  tags = {
-    Name = "express-sg-part2"
+# Flask SG
+resource "aws_security_group" "flask_sg" {
+  name        = "flask-sg"
+  description = "Flask backend SG"
+  vpc_id      = aws_vpc.main_vpc.id
+
+  # Public access
+  ingress {
+    from_port   = 5000
+    to_port     = 5000
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+    ingress {
+    from_port   = 22
+    to_port     = 22
+    protocol    = "tcp"
+    cidr_blocks = ["0.0.0.0/0"]
+  }
+
+
+  # Inter-EC2 communication (Flask can talk to Express if needed)
+  ingress {
+    from_port   = 5000
+    to_port     = 5000
+    protocol    = "tcp"
+    cidr_blocks = [aws_vpc.main_vpc.cidr_block]
+  }
+
+  egress {
+    from_port   = 0
+    to_port     = 0
+    protocol    = "-1"
+    cidr_blocks = ["0.0.0.0/0"]
   }
 }
 
-################################
-# EC2 Instances
-################################
+##############################
+# EXPRESS EC2
+##############################
+resource "aws_instance" "express_ec2" {
+  ami                    = var.ami
+  instance_type          = var.instance_type
+  subnet_id              = aws_subnet.public_subnet.id
+  vpc_security_group_ids = [aws_security_group.express_sg.id]
+  key_name               = var.key_name
 
-# Flask Backend EC2
+  user_data = file("${path.module}/user-data/express.sh")
+
+  tags = {
+    Name = "Express-Frontend-Part2"
+  }
+}
+
+##############################
+# FLASK EC2 (Depends on Express)
+##############################
 resource "aws_instance" "flask_ec2" {
-  ami                    = "ami-0f5ee92e2d63afc18"
+  ami                    = var.ami
   instance_type          = var.instance_type
   subnet_id              = aws_subnet.public_subnet.id
   vpc_security_group_ids = [aws_security_group.flask_sg.id]
   key_name               = var.key_name
 
-  user_data = templatefile("user-data/flask.sh", {
-  FLASK_PRIVATE_IP = aws_instance.express_ec2.private_ip
-})
+  depends_on = [aws_instance.express_ec2]
+   connection {
+    type        = "ssh"
+    user        = "ec2-user"
+    private_key = file("/home/ec2-user/terraform-runner-ec2.pem")
+    host        = self.public_ip
+  }
 
+  provisioner "remote-exec" {
+    inline = [
+      "sudo yum update -y",
+      "sudo yum install -y python3 git",
+      "cd /home/ec2-user",
+      "git clone https://github.com/Mateen-Aws2025/flask-express-app-withlocalk8s-minikube.git || true",
+      "cd flask-express-app-withlocalk8s-minikube/flask-frontend",
+      "export BACKEND_URL=http://${aws_instance.express_ec2.private_ip}:3000",
+      "pip3 install -r requirements.txt",
+      "nohup python3 app.py --host=0.0.0.0 --port=5000 > flask.log 2>&1 &"
+    ]
+  }
 
   tags = {
     Name = "Flask-Backend-Part2"
   }
 }
 
-# Express Frontend EC2
-resource "aws_instance" "express_ec2" {
-  ami                    = "ami-0f5ee92e2d63afc18"
-  instance_type          = var.instance_type
-  subnet_id              = aws_subnet.public_subnet.id
-  vpc_security_group_ids = [aws_security_group.express_sg.id]
-  key_name               = var.key_name
+##############################
+# OUTPUTS
+##############################
+output "express_public_ip" {
+  description = "Public IP of Express frontend"
+  value       = aws_instance.express_ec2.public_ip
+}
 
-  user_data = templatefile("user-data/express.sh", {
-    FLASK_PRIVATE_IP = aws_instance.flask_ec2.private_ip
-  })
-
-  tags = {
-    Name = "Express-Frontend-Part2"
-  }
+output "flask_public_ip" {
+  description = "Public IP of Flask backend"
+  value       = aws_instance.flask_ec2.public_ip
 }
