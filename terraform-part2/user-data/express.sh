@@ -1,21 +1,20 @@
 #!/bin/bash
-set -e
-
 yum update -y
-yum install -y git
-
-# Install Node.js
 curl -fsSL https://rpm.nodesource.com/setup_18.x | bash -
-yum install -y nodejs
+yum install -y nodejs git
 
 cd /home/ec2-user
 
-# Clone repo
+# Clone repository
 git clone https://github.com/Mateen-Aws2025/flask-express-app-withlocalk8s-minikube.git
-chown -R ec2-user:ec2-user flask-express-app-withlocalk8s-minikube
 
-# Express app
 cd flask-express-app-withlocalk8s-minikube/express-backend
+
+# Export backend URL (Flask private IP)
+export BACKEND_URL=http://${FLASK_PRIVATE_IP}:5000
+
+# Install Node dependencies
 npm install
 
-nohup npm start > express.log 2>&1 &
+# Start Express app
+nohup node index.js > express.log 2>&1 &
