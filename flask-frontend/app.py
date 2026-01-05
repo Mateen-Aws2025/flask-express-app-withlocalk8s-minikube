@@ -1,10 +1,11 @@
 from flask import Flask, render_template, request
 import requests
+import os
 
 app = Flask(__name__)
 
-# Express runs on the same EC2
-BACKEND_URL = "http://localhost:3000"
+# Backend URL (Express)
+BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:3000")
 
 @app.route("/", methods=["GET", "POST"])
 def home():
@@ -22,11 +23,10 @@ def home():
         try:
             response = requests.post(f"{BACKEND_URL}/greet", json=data)
             greeting = response.json().get("message")
-        except Exception as e:
+        except Exception:
             greeting = "Express backend not reachable"
 
     return render_template("index.html", greeting=greeting)
 
 if __name__ == "__main__":
     app.run(host="0.0.0.0", port=5000)
-
